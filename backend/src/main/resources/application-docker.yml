@@ -1,0 +1,15 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/ledgerflow
+    username: ledgerflow
+    password: ledgerflow
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+  redis:
+    host: redis
+    port: 6379
+  kafka:
+    bootstrap-servers: kafka:9092
+    listener:
+      auto-startup: true
