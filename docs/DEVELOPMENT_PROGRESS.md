@@ -17,7 +17,7 @@
 - **Implementation:** Added guarded `PENDING -> COMPLETED` and `COMPLETED -> REVERSED` entity transitions; restricted reversals to transfers; made same-key reversal retries return the existing reversal while different-key retries conflict; verified reversals create a matching debit/credit pair without changing the original ledger history.
 - **Tests:** `mvn -q -Dtest=LedgerFlowConcurrencyTest,LedgerFlowFinancialFlowTest test` and `mvn -q verify` — 6 tests passed, 0 failures, 0 errors; package verification succeeded.
 - **Runtime:** Integration-test Spring contexts started successfully using local H2.
-- **Commit:** Pending commit.
-- **Push:** Pending.
+- **Commit:** `d218f1d3033f0c204f505bbc6f918748567a24fb` — `feat: enforce transaction lifecycle and reversal rules`.
+- **Push:** Pushed to `origin/main`; remote head confirmed as `d218f1d3033f0c204f505bbc6f918748567a24fb`.
 - **Remaining issues:** Day 9 was tested against H2; production PostgreSQL and Docker-backed execution are still unverified because Docker is unavailable.
 - **Next scheduled milestone:** Day 10 — reconciliation jobs and discrepancy reporting.
