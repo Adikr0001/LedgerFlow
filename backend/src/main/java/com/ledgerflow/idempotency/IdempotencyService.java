@@ -17,9 +17,9 @@ public class IdempotencyService {
     }
 
     @Transactional
-    public void ensureUnique(Long userId, String operationKey, String requestHash, String operationName) {
+    public boolean ensureUnique(Long userId, String operationKey, String requestHash, String operationName) {
         if (operationKey == null || operationKey.isBlank()) {
-            return;
+            return true;
         }
         IdempotencyKey existing = repository.findByUserIdAndOperationKey(userId, operationKey).orElse(null);
         if (existing == null) {
@@ -28,13 +28,14 @@ public class IdempotencyService {
             key.setOperationKey(operationKey);
             key.setRequestHash(requestHash);
             key.setStatus("COMPLETED");
-            key.setResponseJson("{}") ;
+            key.setResponseJson("{}");
             repository.save(key);
-            return;
+            return true;
         }
         if (!existing.getRequestHash().equals(requestHash)) {
             throw new ConflictException("Idempotency key already used with a different payload for " + operationName);
         }
+        return false;
     }
 
     public String serialize(Object data) {

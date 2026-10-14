@@ -47,6 +47,8 @@ jwt:
 app:
   rate-limit:
     requests-per-minute: ${RATE_LIMIT_PER_MINUTE:60}
+  kafka:
+    enabled: ${KAFKA_ENABLED:false}
 
 management:
   endpoints:

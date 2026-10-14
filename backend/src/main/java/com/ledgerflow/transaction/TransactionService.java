@@ -70,7 +70,17 @@ public class TransactionService {
         }
 
         String requestHash = walletService.makeHash("transfer", request.sourceWalletId().toString(), request.targetWalletId().toString(), request.amount().toPlainString(), request.currency(), request.idempotencyKey());
-        idempotencyService.ensureUnique(userId, request.idempotencyKey(), requestHash, "transfer");
+        boolean isNewRequest = idempotencyService.ensureUnique(userId, request.idempotencyKey(), requestHash, "transfer");
+        if (!isNewRequest) {
+            return transactionRepository.findByInitiatorUserId(userId, Pageable.unpaged())
+                .stream()
+                .filter(tx -> tx.getSourceWalletId() != null && tx.getSourceWalletId().equals(request.sourceWalletId())
+                    && tx.getTargetWalletId() != null && tx.getTargetWalletId().equals(request.targetWalletId())
+                    && tx.getAmount().compareTo(request.amount()) == 0
+                    && tx.getCurrency().equalsIgnoreCase(request.currency()))
+                .findFirst()
+                .orElseThrow(() -> new ConflictException("Duplicate idempotent transfer already exists"));
+        }
 
         Transaction tx = new Transaction();
         tx.setTransactionRef("TX-" + System.nanoTime());
@@ -129,7 +139,7 @@ public class TransactionService {
         Wallet target = walletRepository.findByIdForUpdate(original.getTargetWalletId())
             .orElseThrow(() -> new ResourceNotFoundException("Target wallet not found"));
 
-        if (source.getBalance().compareTo(original.getAmount()) < 0) {
+        if (target.getBalance().compareTo(original.getAmount()) < 0) {
             throw new InsufficientFundsException("Reversal would create a negative balance; admin review required");
         }
 

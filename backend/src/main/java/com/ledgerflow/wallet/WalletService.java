@@ -5,6 +5,9 @@ import com.ledgerflow.audit.AuditEventRepository;
 import com.ledgerflow.common.exception.InsufficientFundsException;
 import com.ledgerflow.common.exception.ResourceNotFoundException;
 import com.ledgerflow.idempotency.IdempotencyService;
+import com.ledgerflow.ledger.LedgerEntry;
+import com.ledgerflow.ledger.LedgerEntryRepository;
+import com.ledgerflow.ledger.LedgerEntryType;
 import com.ledgerflow.notification.NotificationMessageService;
 import com.ledgerflow.transaction.Transaction;
 import com.ledgerflow.transaction.TransactionRepository;
@@ -16,6 +19,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Optional;
 
@@ -28,6 +34,7 @@ public class WalletService {
     private final IdempotencyService idempotencyService;
     private final NotificationMessageService notificationMessageService;
     private final ObjectMapper objectMapper;
+    private final LedgerEntryRepository ledgerEntryRepository;
 
     public WalletService(WalletRepository walletRepository,
                         UserRepository userRepository,
@@ -35,7 +42,8 @@ public class WalletService {
                         AuditEventRepository auditEventRepository,
                         IdempotencyService idempotencyService,
                         NotificationMessageService notificationMessageService,
-                        ObjectMapper objectMapper) {
+                        ObjectMapper objectMapper,
+                        LedgerEntryRepository ledgerEntryRepository) {
         this.walletRepository = walletRepository;
         this.userRepository = userRepository;
         this.transactionRepository = transactionRepository;
@@ -43,6 +51,7 @@ public class WalletService {
         this.idempotencyService = idempotencyService;
         this.notificationMessageService = notificationMessageService;
         this.objectMapper = objectMapper;
+        this.ledgerEntryRepository = ledgerEntryRepository;
     }
 
     public Wallet createWallet(Long userId, String currency) {
@@ -78,7 +87,10 @@ public class WalletService {
             throw new IllegalArgumentException("Deposit amount must be greater than zero");
         }
         String requestHash = makeHash("deposit", String.valueOf(walletId), amount.toPlainString(), currency, idempotencyKey);
-        idempotencyService.ensureUnique(userId, idempotencyKey, requestHash, "wallet deposit");
+        boolean isNewRequest = idempotencyService.ensureUnique(userId, idempotencyKey, requestHash, "wallet deposit");
+        if (!isNewRequest) {
+            return wallet;
+        }
 
         wallet.setBalance(wallet.getBalance().add(amount));
         wallet.setUpdatedAt(java.time.Instant.now());
@@ -93,8 +105,9 @@ public class WalletService {
         tx.setSourceWalletId(null);
         tx.setTargetWalletId(walletId);
         tx.setInitiatorUserId(userId);
-        transactionRepository.save(tx);
+        tx = transactionRepository.save(tx);
 
+        ledgerEntryRepository.save(new LedgerEntry(tx.getId(), walletId, LedgerEntryType.CREDIT, amount, currency));
         auditEventRepository.save(new AuditEvent("wallet.deposit", userId, walletId, tx.getId(), MapToString.of("amount", amount, "currency", currency)));
         notificationMessageService.notifyUser(userId, tx.getId(), "Deposit received: " + amount + " " + currency);
         return saved;
@@ -114,11 +127,21 @@ public class WalletService {
     }
 
     public String makeHash(String... values) {
-        StringBuilder builder = new StringBuilder();
-        for (String value : values) {
-            builder.append(value).append(':');
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            StringBuilder builder = new StringBuilder();
+            for (String value : values) {
+                builder.append(value).append(':');
+            }
+            byte[] hash = digest.digest(builder.toString().getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder();
+            for (byte b : hash) {
+                hex.append(String.format("%02x", b));
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("Unable to hash request", e);
         }
-        return builder.toString();
     }
 
     public static class MapToString {
