@@ -57,10 +57,9 @@ public class TransactionService {
             throw new IllegalArgumentException("Self-transfers are not allowed");
         }
 
-        Wallet source = walletRepository.findByIdForUpdate(request.sourceWalletId())
-            .orElseThrow(() -> new ResourceNotFoundException("Source wallet not found"));
-        Wallet target = walletRepository.findByIdForUpdate(request.targetWalletId())
-            .orElseThrow(() -> new ResourceNotFoundException("Target wallet not found"));
+        WalletPair wallets = lockWalletPair(request.sourceWalletId(), request.targetWalletId());
+        Wallet source = wallets.source();
+        Wallet target = wallets.target();
 
         if (!source.getUserId().equals(userId)) {
             throw new SecurityException("User does not own the source wallet");
@@ -123,7 +122,7 @@ public class TransactionService {
 
     @Transactional
     public Transaction reverse(Long userId, Long transactionId, String idempotencyKey) {
-        Transaction original = transactionRepository.findById(transactionId)
+        Transaction original = transactionRepository.findByIdForUpdate(transactionId)
             .orElseThrow(() -> new ResourceNotFoundException("Transaction not found"));
         if (!original.getInitiatorUserId().equals(userId)) {
             throw new SecurityException("User cannot reverse this transaction");
@@ -134,10 +133,9 @@ public class TransactionService {
         String requestHash = walletService.makeHash("reversal", transactionId.toString(), idempotencyKey);
         idempotencyService.ensureUnique(userId, idempotencyKey, requestHash, "reversal");
 
-        Wallet source = walletRepository.findByIdForUpdate(original.getSourceWalletId())
-            .orElseThrow(() -> new ResourceNotFoundException("Source wallet not found"));
-        Wallet target = walletRepository.findByIdForUpdate(original.getTargetWalletId())
-            .orElseThrow(() -> new ResourceNotFoundException("Target wallet not found"));
+        WalletPair wallets = lockWalletPair(original.getSourceWalletId(), original.getTargetWalletId());
+        Wallet source = wallets.source();
+        Wallet target = wallets.target();
 
         if (target.getBalance().compareTo(original.getAmount()) < 0) {
             throw new InsufficientFundsException("Reversal would create a negative balance; admin review required");
@@ -169,4 +167,18 @@ public class TransactionService {
         notificationMessageService.notifyUser(userId, reversal.getId(), "Reversal processed for transaction " + original.getId());
         return reversal;
     }
+
+    private WalletPair lockWalletPair(Long sourceWalletId, Long targetWalletId) {
+        Long firstId = Math.min(sourceWalletId, targetWalletId);
+        Long secondId = Math.max(sourceWalletId, targetWalletId);
+        Wallet first = walletRepository.findByIdForUpdate(firstId)
+            .orElseThrow(() -> new ResourceNotFoundException("Wallet not found: " + firstId));
+        Wallet second = walletRepository.findByIdForUpdate(secondId)
+            .orElseThrow(() -> new ResourceNotFoundException("Wallet not found: " + secondId));
+        return sourceWalletId.equals(firstId)
+            ? new WalletPair(first, second)
+            : new WalletPair(second, first);
+    }
+
+    private record WalletPair(Wallet source, Wallet target) {}
 }
