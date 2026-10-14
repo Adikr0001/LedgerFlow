@@ -84,12 +84,12 @@ public class TransactionService {
         Transaction tx = new Transaction();
         tx.setTransactionRef("TX-" + System.nanoTime());
         tx.setType(TransactionType.TRANSFER);
-        tx.setStatus(TransactionStatus.COMPLETED);
         tx.setAmount(request.amount());
         tx.setCurrency(request.currency());
         tx.setSourceWalletId(source.getId());
         tx.setTargetWalletId(target.getId());
         tx.setInitiatorUserId(userId);
+        tx.complete();
         tx = transactionRepository.save(tx);
 
         source.setBalance(source.getBalance().subtract(request.amount()));
@@ -127,11 +127,18 @@ public class TransactionService {
         if (!original.getInitiatorUserId().equals(userId)) {
             throw new SecurityException("User cannot reverse this transaction");
         }
-        if (original.getStatus() != TransactionStatus.COMPLETED) {
-            throw new ConflictException("Only completed transactions can be reversed");
+        if (original.getType() != TransactionType.TRANSFER) {
+            throw new ConflictException("Only transfers can be reversed");
         }
         String requestHash = walletService.makeHash("reversal", transactionId.toString(), idempotencyKey);
-        idempotencyService.ensureUnique(userId, idempotencyKey, requestHash, "reversal");
+        boolean isNewRequest = idempotencyService.ensureUnique(userId, idempotencyKey, requestHash, "reversal");
+        if (!isNewRequest) {
+            return transactionRepository.findByOriginalTransactionId(transactionId)
+                .orElseThrow(() -> new ConflictException("Idempotent reversal is not yet available"));
+        }
+        if (original.getStatus() != TransactionStatus.COMPLETED) {
+            throw new ConflictException("Only completed transfers can be reversed");
+        }
 
         WalletPair wallets = lockWalletPair(original.getSourceWalletId(), original.getTargetWalletId());
         Wallet source = wallets.source();
@@ -144,13 +151,13 @@ public class TransactionService {
         Transaction reversal = new Transaction();
         reversal.setTransactionRef("REV-" + System.nanoTime());
         reversal.setType(TransactionType.REVERSAL);
-        reversal.setStatus(TransactionStatus.COMPLETED);
         reversal.setAmount(original.getAmount());
         reversal.setCurrency(original.getCurrency());
         reversal.setSourceWalletId(original.getTargetWalletId());
         reversal.setTargetWalletId(original.getSourceWalletId());
         reversal.setInitiatorUserId(userId);
         reversal.setOriginalTransactionId(original.getId());
+        reversal.complete();
         reversal = transactionRepository.save(reversal);
 
         source.setBalance(source.getBalance().add(original.getAmount()));
@@ -160,7 +167,7 @@ public class TransactionService {
 
         ledgerEntryRepository.save(new LedgerEntry(reversal.getId(), source.getId(), LedgerEntryType.CREDIT, original.getAmount(), original.getCurrency()));
         ledgerEntryRepository.save(new LedgerEntry(reversal.getId(), target.getId(), LedgerEntryType.DEBIT, original.getAmount(), original.getCurrency()));
-        original.setStatus(TransactionStatus.REVERSED);
+        original.markReversed();
         transactionRepository.save(original);
 
         auditEventRepository.save(new AuditEvent("transfer.reversed", userId, source.getId(), reversal.getId(), "reversed tx=" + original.getId()));

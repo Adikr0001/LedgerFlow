@@ -55,7 +55,6 @@ public class Transaction {
     public TransactionType getType() { return type; }
     public void setType(TransactionType type) { this.type = type; }
     public TransactionStatus getStatus() { return status; }
-    public void setStatus(TransactionStatus status) { this.status = status; }
     public BigDecimal getAmount() { return amount; }
     public void setAmount(BigDecimal amount) { this.amount = amount; }
     public String getCurrency() { return currency; }
@@ -72,4 +71,20 @@ public class Transaction {
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
+
+    public void complete() {
+        if (status != TransactionStatus.PENDING) {
+            throw new IllegalStateException("Only pending transactions can be completed");
+        }
+        status = TransactionStatus.COMPLETED;
+        updatedAt = Instant.now();
+    }
+
+    public void markReversed() {
+        if (type != TransactionType.TRANSFER || status != TransactionStatus.COMPLETED) {
+            throw new IllegalStateException("Only completed transfers can be reversed");
+        }
+        status = TransactionStatus.REVERSED;
+        updatedAt = Instant.now();
+    }
 }

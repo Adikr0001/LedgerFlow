@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
     Page<Transaction> findByInitiatorUserId(Long userId, Pageable pageable);
@@ -17,5 +18,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select t from Transaction t where t.id = :id")
-    java.util.Optional<Transaction> findByIdForUpdate(@Param("id") Long id);
+    Optional<Transaction> findByIdForUpdate(@Param("id") Long id);
+
+    Optional<Transaction> findByOriginalTransactionId(Long originalTransactionId);
 }

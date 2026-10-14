@@ -99,12 +99,12 @@ public class WalletService {
         Transaction tx = new Transaction();
         tx.setTransactionRef("DEP-" + System.nanoTime());
         tx.setType(TransactionType.DEPOSIT);
-        tx.setStatus(TransactionStatus.COMPLETED);
         tx.setAmount(amount);
         tx.setCurrency(currency);
         tx.setSourceWalletId(null);
         tx.setTargetWalletId(walletId);
         tx.setInitiatorUserId(userId);
+        tx.complete();
         tx = transactionRepository.save(tx);
 
         ledgerEntryRepository.save(new LedgerEntry(tx.getId(), walletId, LedgerEntryType.CREDIT, amount, currency));

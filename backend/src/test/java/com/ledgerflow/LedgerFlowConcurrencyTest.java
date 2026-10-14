@@ -2,8 +2,13 @@ package com.ledgerflow;
 
 import com.ledgerflow.common.exception.ConflictException;
 import com.ledgerflow.common.exception.InsufficientFundsException;
+import com.ledgerflow.ledger.LedgerEntry;
+import com.ledgerflow.ledger.LedgerEntryRepository;
+import com.ledgerflow.ledger.LedgerEntryType;
 import com.ledgerflow.transaction.Transaction;
+import com.ledgerflow.transaction.TransactionRepository;
 import com.ledgerflow.transaction.TransactionService;
+import com.ledgerflow.transaction.TransactionType;
 import com.ledgerflow.transaction.TransferRequest;
 import com.ledgerflow.user.User;
 import com.ledgerflow.user.UserRepository;
@@ -31,6 +36,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.IntFunction;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -52,6 +58,12 @@ class LedgerFlowConcurrencyTest {
 
     @Autowired
     private TransactionService transactionService;
+
+    @Autowired
+    private TransactionRepository transactionRepository;
+
+    @Autowired
+    private LedgerEntryRepository ledgerEntryRepository;
 
     @Test
     void concurrentTransfersCannotSpendMoreThanWalletBalance()
@@ -136,6 +148,42 @@ class LedgerFlowConcurrencyTest {
             .isEqualByComparingTo("100.00");
         assertThat(walletRepository.findById(target.getId()).orElseThrow().getBalance())
             .isEqualByComparingTo("0.00");
+
+        Transaction reversal = transactionRepository.findByOriginalTransactionId(original.getId()).orElseThrow();
+        List<LedgerEntry> reversalEntries = ledgerEntryRepository.findByTransactionId(reversal.getId());
+        assertThat(reversalEntries).hasSize(2);
+        assertThat(reversalEntries)
+            .extracting(LedgerEntry::getEntryType)
+            .containsExactlyInAnyOrder(LedgerEntryType.CREDIT, LedgerEntryType.DEBIT);
+        assertThat(reversalEntries)
+            .allSatisfy(entry -> assertThat(entry.getAmount()).isEqualByComparingTo("25.00"));
+    }
+
+    @Test
+    void reversalRetryWithSameKeyReturnsOriginalReversalAndDepositsCannotBeReversed()
+        throws Exception {
+        User sourceUser = registerUser("retry-source");
+        User targetUser = registerUser("retry-target");
+        Wallet source = walletService.createWallet(sourceUser.getId(), "USD");
+        Wallet target = walletService.createWallet(targetUser.getId(), "USD");
+        walletService.deposit(sourceUser.getId(), source.getId(), new BigDecimal("100.00"), "USD", "seed-retry-" + UUID.randomUUID());
+        Transaction original = transactionService.transfer(sourceUser.getId(), new TransferRequest(
+            source.getId(), target.getId(), new BigDecimal("25.00"), "USD", "retry-transfer-" + UUID.randomUUID()));
+
+        String reversalKey = "reversal-retry-" + UUID.randomUUID();
+        Transaction firstReversal = transactionService.reverse(sourceUser.getId(), original.getId(), reversalKey);
+        Transaction replayedReversal = transactionService.reverse(sourceUser.getId(), original.getId(), reversalKey);
+
+        assertThat(replayedReversal.getId()).isEqualTo(firstReversal.getId());
+        assertThatThrownBy(() -> transactionService.reverse(sourceUser.getId(), original.getId(), "different-key-" + UUID.randomUUID()))
+            .isInstanceOf(ConflictException.class);
+
+        Transaction deposit = transactionRepository.findAll().stream()
+            .filter(tx -> tx.getInitiatorUserId().equals(sourceUser.getId()) && tx.getType() == TransactionType.DEPOSIT)
+            .findFirst()
+            .orElseThrow();
+        assertThatThrownBy(() -> transactionService.reverse(sourceUser.getId(), deposit.getId(), "deposit-reversal-" + UUID.randomUUID()))
+            .isInstanceOf(ConflictException.class);
     }
 
     private User registerUser(String prefix) throws Exception {
