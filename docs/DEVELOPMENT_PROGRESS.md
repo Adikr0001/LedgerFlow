@@ -29,6 +29,6 @@
 - **Tests:** `cd frontend && npm ci && npm test && npm run build` — 5 frontend tests passed, strict TypeScript and production build passed. `npm audit` — 0 vulnerabilities. `cd backend && mvn -q verify` — 10 tests passed (4 application/API, 5 concurrency, 1 financial-flow), 0 failures/errors. Exact large-decimal JSON serialization and decimal-string OpenAPI schemas are covered by backend regression tests.
 - **Runtime:** Browser smoke test against a fresh local Spring Boot/H2 backend verified registration, wallet creation, a simulated USD 123.45 deposit, exact USD 123.4500 display, and the completed transaction row. API health returned `{"status":"UP"}`. Docker Compose could not be started because the Docker CLI is not installed; PostgreSQL/Redis/Kafka-backed runtime remains unverified.
 - **Security and limitations:** Complete frontend dependency audit is clean. No real-money processing is claimed; deposits are simulated. Backend transaction search/status filtering remains page-local, and fraud review remains unavailable without API support.
-- **Commit:** Pending.
-- **Push:** Pending.
+- **Commit:** `2ca4d9650499543ec1b3bc474eeb209c61f3f727` — `feat(web): deliver LedgerFlow frontend and API integration` (49 files changed).
+- **Push:** Pushed to `origin/main`; remote head verified as `2ca4d9650499543ec1b3bc474eeb209c61f3f727`.
 - **Next scheduled milestone:** Resume Day 10 — reconciliation jobs and discrepancy reporting; frontend work is ahead of the original plan.
