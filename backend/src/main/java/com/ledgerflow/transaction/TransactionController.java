@@ -23,7 +23,7 @@ public class TransactionController {
     public ResponseEntity<ApiResponse<Map<String, Object>>> createTransfer(@AuthenticationPrincipal UserPrincipal principal,
                                                                           @RequestBody TransferRequest request) {
         Transaction tx = transactionService.transfer(principal.getUser().getId(), request);
-        return ResponseEntity.ok(ApiResponse.success("Transfer accepted", Map.of("transactionId", tx.getId(), "status", tx.getStatus(), "amount", tx.getAmount())));
+        return ResponseEntity.ok(ApiResponse.success("Transfer accepted", Map.of("transactionId", tx.getId(), "status", tx.getStatus(), "amount", tx.getAmount().toPlainString())));
     }
 
     @GetMapping("/transactions/{transactionId}")

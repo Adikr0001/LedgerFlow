@@ -124,6 +124,23 @@ class LedgerFlowConcurrencyTest {
     }
 
     @Test
+    void transferRejectsMismatchedWalletCurrencies() throws Exception {
+        User sourceUser = registerUser("currency-source");
+        User targetUser = registerUser("currency-target");
+        Wallet source = walletService.createWallet(sourceUser.getId(), "USD");
+        Wallet target = walletService.createWallet(targetUser.getId(), "EUR");
+
+        assertThatThrownBy(() -> transactionService.transfer(sourceUser.getId(), new TransferRequest(
+            source.getId(), target.getId(), new BigDecimal("1.00"), "USD", "currency-check-" + UUID.randomUUID())))
+            .isInstanceOf(ConflictException.class)
+            .hasMessageContaining("currency must match");
+        assertThat(walletRepository.findById(source.getId()).orElseThrow().getBalance())
+            .isEqualByComparingTo("0.00");
+        assertThat(walletRepository.findById(target.getId()).orElseThrow().getBalance())
+            .isEqualByComparingTo("0.00");
+    }
+
+    @Test
     void concurrentReversalsCanOnlyReverseOriginalTransactionOnce()
         throws Exception {
         User sourceUser = registerUser("reversal-source");

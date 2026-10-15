@@ -1,6 +1,9 @@
 package com.ledgerflow.transaction;
 
 import jakarta.persistence.*;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.time.Instant;
 
@@ -23,6 +26,7 @@ public class Transaction {
     private TransactionStatus status = TransactionStatus.PENDING;
 
     @Column(nullable = false)
+    @Schema(implementation = String.class, format = "decimal", example = "123.45")
     private BigDecimal amount;
 
     @Column(nullable = false)
@@ -55,6 +59,7 @@ public class Transaction {
     public TransactionType getType() { return type; }
     public void setType(TransactionType type) { this.type = type; }
     public TransactionStatus getStatus() { return status; }
+    @JsonSerialize(using = ToStringSerializer.class)
     public BigDecimal getAmount() { return amount; }
     public void setAmount(BigDecimal amount) { this.amount = amount; }
     public String getCurrency() { return currency; }

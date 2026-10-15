@@ -1,6 +1,9 @@
 package com.ledgerflow.wallet;
 
 import jakarta.persistence.*;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.time.Instant;
 
@@ -18,6 +21,7 @@ public class Wallet {
     private String currency = "INR";
 
     @Column(nullable = false)
+    @Schema(implementation = String.class, format = "decimal", example = "123.45")
     private BigDecimal balance = BigDecimal.ZERO;
 
     @Enumerated(EnumType.STRING)
@@ -46,6 +50,7 @@ public class Wallet {
     public void setUserId(Long userId) { this.userId = userId; }
     public String getCurrency() { return currency; }
     public void setCurrency(String currency) { this.currency = currency; }
+    @JsonSerialize(using = ToStringSerializer.class)
     public BigDecimal getBalance() { return balance; }
     public void setBalance(BigDecimal balance) { this.balance = balance; }
     public WalletStatus getStatus() { return status; }

@@ -64,6 +64,11 @@ public class TransactionService {
         if (!source.getUserId().equals(userId)) {
             throw new SecurityException("User does not own the source wallet");
         }
+        if (request.currency() == null || request.currency().isBlank()
+            || !source.getCurrency().equalsIgnoreCase(request.currency())
+            || !target.getCurrency().equalsIgnoreCase(request.currency())) {
+            throw new ConflictException("Source wallet, destination wallet, and transfer currency must match");
+        }
         if (source.getBalance().compareTo(request.amount()) < 0) {
             throw new InsufficientFundsException("Insufficient funds for transfer");
         }

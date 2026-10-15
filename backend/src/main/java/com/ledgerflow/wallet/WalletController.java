@@ -2,6 +2,7 @@ package com.ledgerflow.wallet;
 
 import com.ledgerflow.common.response.ApiResponse;
 import com.ledgerflow.security.UserPrincipal;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -25,7 +26,7 @@ public class WalletController {
     public ResponseEntity<ApiResponse<Map<String, Object>>> createWallet(@AuthenticationPrincipal UserPrincipal principal,
                                                                           @Valid @RequestBody CreateWalletRequest request) {
         Wallet wallet = walletService.createWallet(principal.getUser().getId(), request.currency());
-        return ResponseEntity.ok(ApiResponse.success("Wallet created", Map.of("walletId", wallet.getId(), "currency", wallet.getCurrency(), "balance", wallet.getBalance())));
+        return ResponseEntity.ok(ApiResponse.success("Wallet created", Map.of("walletId", wallet.getId(), "currency", wallet.getCurrency(), "balance", wallet.getBalance().toPlainString())));
     }
 
     @GetMapping("/wallets")
@@ -42,7 +43,7 @@ public class WalletController {
     @GetMapping("/wallets/{walletId}/balance")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getBalance(@AuthenticationPrincipal UserPrincipal principal, @PathVariable Long walletId) {
         BigDecimal balance = walletService.getBalance(principal.getUser().getId(), walletId);
-        return ResponseEntity.ok(ApiResponse.success("Balance fetched", Map.of("walletId", walletId, "balance", balance)));
+        return ResponseEntity.ok(ApiResponse.success("Balance fetched", Map.of("walletId", walletId, "balance", balance.toPlainString())));
     }
 
     @PostMapping("/wallets/{walletId}/deposits")
@@ -50,9 +51,10 @@ public class WalletController {
                                                                    @PathVariable Long walletId,
                                                                    @Valid @RequestBody DepositRequest request) {
         Wallet wallet = walletService.deposit(principal.getUser().getId(), walletId, request.amount(), request.currency(), request.idempotencyKey());
-        return ResponseEntity.ok(ApiResponse.success("Deposit processed", Map.of("walletId", wallet.getId(), "balance", wallet.getBalance())));
+        return ResponseEntity.ok(ApiResponse.success("Deposit processed", Map.of("walletId", wallet.getId(), "balance", wallet.getBalance().toPlainString())));
     }
 
     public record CreateWalletRequest(String currency) {}
-    public record DepositRequest(BigDecimal amount, String currency, String idempotencyKey) {}
+    public record DepositRequest(@Schema(implementation = String.class, format = "decimal", example = "12.34") BigDecimal amount,
+                                 String currency, String idempotencyKey) {}
 }
